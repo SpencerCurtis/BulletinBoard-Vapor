@@ -1,4 +1,5 @@
 import Vapor
+import FluentSQLite
 
 /// Called before your application initializes.
 ///
@@ -8,10 +9,29 @@ public func configure(
     _ env: inout Environment,
     _ services: inout Services
 ) throws {
-    // Register routes to the router
+
     let router = EngineRouter.default()
     try routes(router)
     services.register(router, as: Router.self)
+    
+    var middlewares = MiddlewareConfig()
+    
+    // Catches errors and converts to HTTP response
+    middlewares.use(ErrorMiddleware.self)
+    middlewares.use(FileMiddleware.self)
+    services.register(middlewares)
+    
+    try services.register(FluentSQLiteProvider())
+    
+    let sqlite = try SQLiteDatabase(storage: .file(path: "db7.sqlite"))
 
-    // Configure the rest of your application here
+    // Register the configured SQLite database to the database config.
+    var databases = DatabasesConfig()
+    databases.enableLogging(on: .sqlite)
+    databases.add(database: sqlite, as: .sqlite)
+    services.register(databases)
+
+    var migrations = MigrationConfig()
+    migrations.add(model: Bulletin.self, database: .sqlite)
+    services.register(migrations)
 }
